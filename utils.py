@@ -9,7 +9,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Set, Callable
 from typing import Union
-
+import imageio
+import os
 import ray
 import torch
 import vmas
@@ -33,12 +34,15 @@ from rllib_differentiable_comms.multi_action_dist import (
 )
 from rllib_differentiable_comms.multi_trainer import MultiPPOTrainer
 
+if not ray.is_initialized():
+    ray.init()
+    print("Ray init!")
 
 class PathUtils:
     scratch_dir = (
-        Path("/Users/Matteo/scratch/")
+        Path("./scratch/")
         if platform.system() == "Darwin"
-        else Path("/local/scratch/mb2389/")
+        else Path("./scratch/")
     )
     gppo_dir = Path(__file__).parent.resolve()
     result_dir = gppo_dir / "results"
@@ -150,6 +154,21 @@ class TrainingUtils:
                 )
             )
 
+        # def on_episode_end(
+        #     self,
+        #     *,
+        #     worker: RolloutWorker,
+        #     base_env: BaseEnv,
+        #     policies: Dict[PolicyID, Policy],
+        #     episode: Episode,
+        #     **kwargs,
+        # ) -> None:
+        #     vid = np.transpose(self.frames, (0, 3, 1, 2))
+        #     episode.media["rendering"] = wandb.Video(
+        #         vid, fps=1 / base_env.vector_env.env.world.dt, format="mp4"
+        #     )
+        #     self.frames = []
+
         def on_episode_end(
             self,
             *,
@@ -159,12 +178,16 @@ class TrainingUtils:
             episode: Episode,
             **kwargs,
         ) -> None:
-            vid = np.transpose(self.frames, (0, 3, 1, 2))
-            episode.media["rendering"] = wandb.Video(
-                vid, fps=1 / base_env.vector_env.env.world.dt, format="mp4"
-            )
-            self.frames = []
+            # Convert frames to a format suitable for saving
+            gif_path = os.path.join(PathUtils.result_dir, "rendering.gif")
+            fps = int(1 / base_env.vector_env.env.world.dt)  # Frames per second
 
+            # Save frames as a GIF
+            imageio.mimsave(gif_path, self.frames, duration=1 / fps)
+            print(f"Saved GIF at: {gif_path}")
+
+            # Clear frames for the next episode
+            self.frames = []
     class HeterogeneityMeasureCallbacks(DefaultCallbacks):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -693,7 +716,7 @@ class EvaluationUtils:
             done = False
             if render:
                 frame_list.append(
-                    env.try_render_at(mode="rgb_array", visualize_when_rgb=True)
+                    env.try_render_at(mode="rgb_array", visualize_when_rgb=False)
                 )
             while not done:
                 i += 1
@@ -719,7 +742,7 @@ class EvaluationUtils:
                 reward_sum += reward
                 if render:
                     frame_list.append(
-                        env.try_render_at(mode="rgb_array", visualize_when_rgb=True)
+                        env.try_render_at(mode="rgb_array", visualize_when_rgb=False)
                     )
             print(f"Episode: {j + 1}, total reward: {reward_sum}")
             rewards.append(reward_sum)
