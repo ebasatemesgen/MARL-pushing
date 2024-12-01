@@ -3,6 +3,7 @@ results/
 wandb/
 train/wandb
 robomaster_experiments/robomaster_data/data/
+scratch/ray_results/
 
 # IntelliJ project files
 .idea
